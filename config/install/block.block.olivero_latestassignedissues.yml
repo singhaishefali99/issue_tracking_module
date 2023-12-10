@@ -1,0 +1,20 @@
+uuid: f18b3829-b902-47cd-842d-779736d2db71
+langcode: en
+status: true
+dependencies:
+  module:
+    - custom_issue_tracking
+  theme:
+    - olivero
+id: olivero_latestassignedissues
+theme: olivero
+region: sidebar
+weight: 0
+provider: null
+plugin: latest_assigned_issues_block
+settings:
+  id: latest_assigned_issues_block
+  label: 'Latest Assigned Issues'
+  label_display: visible
+  provider: custom_issue_tracking
+visibility: {  }

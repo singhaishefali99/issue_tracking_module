@@ -1,0 +1,238 @@
+<?php
+
+/**
+ * @file
+ * Implements hook_install() to set up the 'Issue' content type and associated components.
+ */
+
+use Drupal\field\Entity\FieldConfig;
+use Drupal\field\Entity\FieldStorageConfig;
+use Drupal\node\Entity\NodeType;
+use Drupal\taxonomy\Entity\Term;
+use Drupal\taxonomy\Entity\Vocabulary;
+
+/**
+ * Implements hook_install().
+ */
+function custom_issue_tracking_install() {
+  // Create the 'Issue' content type.
+  create_issue_content_type();
+  // Create the taxonomies and there terms for 'Issue' content type.
+  create_taxonomy_and_terms();
+  // Create fields for the 'issue' content type.
+  create_issue_fields();
+}
+
+/**
+ * Create 'Issue' content type.
+ */
+function create_issue_content_type() {
+  $content_type_id = 'issue';
+  // Check if the content type already exists.
+  $existing_type = NodeType::load($content_type_id);
+  if (!$existing_type) {
+    $node_type = NodeType::create([
+      'type' => 'issue',
+      'name' => 'Issue',
+      'base' => 'node_content',
+      'description' => 'An issue tracking content type.',
+      'help' => '',
+      'has_title' => TRUE,
+      'title_label' => 'Title',
+      'new_revision' => TRUE,
+      'preview_mode' => 1,
+      'display_submitted' => FALSE,
+      'preview_mode' => '1',
+    ]);
+    $node_type->save();
+  }
+}
+
+/**
+ * Create vocabularies and terms for 'Issue' content type.
+ */
+function create_taxonomy_and_terms() {
+  // Create vocabularies.
+  $vocabularies = [
+    'issue_type' => 'Issue Type',
+    'priority' => 'Priority',
+    'status' => 'Status',
+  ];
+
+  foreach ($vocabularies as $vid => $vocabulary_name) {
+    // Check if the vocabulary already exists.
+    $vocabulary = Vocabulary::load($vid);
+    if (!$vocabulary) {
+      $vocabulary = Vocabulary::create([
+        'vid' => $vid,
+        'name' => $vocabulary_name,
+      ]);
+      $vocabulary->save();
+    }
+  }
+
+  // Add terms to vocabularies.
+  $terms = [
+    'issue_type' => ['New feature', 'Change', 'Task', 'Bug', 'Improvement'],
+    'priority' => ['Critical', 'High', 'Low', 'Trivial'],
+    'status' => ['To Do', 'In Progress', 'In Review', 'Done'],
+  ];
+
+  foreach ($terms as $vid => $term_names) {
+    $vocabulary = Vocabulary::load($vid);
+
+    foreach ($term_names as $term_name) {
+      $term = Term::create([
+        'vid' => $vocabulary->id(),
+        'name' => $term_name,
+      ]);
+      $term->save();
+    }
+  }
+
+}
+
+/**
+ * Create fields for the 'issue' content type.
+ */
+function create_issue_fields() {
+  $fields = [
+    'field_short_description' => [
+      'label' => 'Short Description',
+      'type' => 'text_long',
+      'description' => 'Short description of issues.',
+      'cardinality' => 1,
+      'required' => TRUE,
+    ],
+    'field_issue_type' => [
+      'label' => 'Issue Type',
+      'type' => 'entity_reference',
+      'description' => 'Field Issue Type',
+      'cardinality' => 1,
+      'required' => TRUE,
+      'settings' => ["target_type" => "taxonomy_term"],
+      'field_config_settings' => [
+        'handler' => 'default:taxonomy_term',
+        'handler_settings' => [
+          'target_bundles' => ['issue_type' => 'issue_type'],
+        ],
+      ],
+    ],
+    'field_priority' => [
+      'label' => 'Issue Priority',
+      'type' => 'entity_reference',
+      'description' => 'Field Issue Priority',
+      'cardinality' => 1,
+      'required' => TRUE,
+      'settings' => ["target_type" => "taxonomy_term"],
+      'field_config_settings' => [
+        'handler' => 'default:taxonomy_term',
+        'handler_settings' => [
+          'target_bundles' => ['priority' => 'priority'],
+        ],
+      ],
+    ],
+    'field_status' => [
+      'label' => 'Issue Status',
+      'type' => 'entity_reference',
+      'description' => 'Field Issue Status',
+      'cardinality' => 1,
+      'required' => TRUE,
+      'settings' => ["target_type" => "taxonomy_term"],
+      'field_config_settings' => [
+        'handler' => 'default:taxonomy_term',
+        'handler_settings' => [
+          'target_bundles' => ['status' => 'status'],
+        ],
+      ],
+    ],
+    'field_reporter' => [
+      'label' => 'Reporter',
+      'type' => 'entity_reference',
+      'description' => 'Field Reporter',
+      'cardinality' => 1,
+      'required' => TRUE,
+      'settings' => ["target_type" => "user"],
+    ],
+    'field_assignee' => [
+      'label' => 'Assignee',
+      'type' => 'entity_reference',
+      'description' => 'Field User Assignee',
+      'cardinality' => 1,
+      'required' => TRUE,
+      'settings' => ["target_type" => "user"],
+    ],
+    'field_list_of_watchers' => [
+      'label' => 'List Of Watchers',
+      'type' => 'entity_reference',
+      'description' => 'Field list of watchers',
+      'cardinality' => -1,
+      'required' => TRUE,
+      'settings' => ["target_type" => "user"],
+    ],
+    'field_due_date' => [
+      'label' => 'Due Date',
+      'type' => 'datetime',
+      'description' => 'Issue due date.',
+      'cardinality' => 1,
+      'required' => TRUE,
+      'settings' => ['datetime_type' => 'date'],
+    ],
+  ];
+
+  foreach ($fields as $field_name => $field_details) {
+    // Check if the field storage configuration already exists.
+    $existing_field_storage = FieldStorageConfig::loadByName('node', $field_name);
+    if (!$existing_field_storage) {
+      // If it doesn't exist, create a new field.
+      create_field($field_name, $field_details);
+      enable_issue_fields_display($field_name, $field_details);
+    }
+  }
+}
+
+/**
+ * Create fields for the 'issue' content type.
+ */
+function create_field($field_name, $field_details) {
+  $field_storage = FieldStorageConfig::create([
+    'field_name' => $field_name,
+    'entity_type' => 'node',
+    'type' => $field_details['type'],
+    'cardinality' => $field_details['cardinality'] ?? 1,
+    'settings' => $field_details['settings'] ?? [],
+    'translatable' => TRUE,
+    'locked' => FALSE,
+  ]);
+  $field_storage->save();
+
+  // Create a new field instance.
+  FieldConfig::create([
+    'field_storage' => $field_storage,
+    'bundle' => 'issue',
+    'label' => $field_details['label'],
+    'required' => $field_details['required'] ?? FALSE,
+    'settings' => $field_details['field_config_settings'] ?? [],
+    'description' => $field_details['description'],
+  ])->save();
+}
+
+/**
+ * Enable the display of field on form & view displays for 'issue' content type.
+ */
+function enable_issue_fields_display($field_name, $field_details) {
+  // Enabling On form display.
+  $entity_display = \Drupal::service('entity_display.repository');
+  $form_display = $entity_display->getFormDisplay('node', 'issue');
+  $form_display->setComponent($field_name, [
+    'weight' => 10,
+  ]);
+  $form_display->save();
+  // Enabling On View display.
+  $view_display = $entity_display->getViewDisplay('node', 'issue');
+  $view_display->setComponent($field_name, [
+    "weight" => 10,
+  ]);
+  $view_display->save();
+
+}
